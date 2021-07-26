@@ -9,7 +9,9 @@ import org.springframework.batch.core.configuration.annotation.StepBuilderFactor
 import org.springframework.batch.core.launch.support.RunIdIncrementer;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.database.JdbcCursorItemReader;
+import org.springframework.batch.item.database.JpaCursorItemReader;
 import org.springframework.batch.item.database.builder.JdbcCursorItemReaderBuilder;
+import org.springframework.batch.item.database.builder.JpaCursorItemReaderBuilder;
 import org.springframework.batch.item.file.FlatFileItemReader;
 import org.springframework.batch.item.file.builder.FlatFileItemReaderBuilder;
 import org.springframework.batch.item.file.mapping.DefaultLineMapper;
@@ -18,6 +20,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
 
+import javax.persistence.EntityManagerFactory;
 import javax.sql.DataSource;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -33,6 +36,8 @@ public class ItemReaderConfiguration {
 
     private final JobBuilderFactory jobBuilderFactory;
     private final StepBuilderFactory stepBuilderFactory;
+    private final EntityManagerFactory entityManagerFactory;
+
 
 
     @Bean
@@ -44,6 +49,7 @@ public class ItemReaderConfiguration {
                 .next(this.personCsvStep())
                 .next(this.jdbcStep())
                 .next(this.locationJdbcStep())
+                .next(this.jpaStep())
                 .build();
     }
 
@@ -77,6 +83,33 @@ public class ItemReaderConfiguration {
                 .reader(jdbcCursorItemReader())
                 .writer(itemWriter())
                 .build();
+    }
+
+    @Bean
+    public Step jpaStep() throws Exception {
+        return this.stepBuilderFactory.get("jpaStep")
+                .<Location, Location>chunk(10)
+                .reader(jpaCursorItemReader())
+                .writer(items -> {
+                    log.info(
+                            items.stream()
+                                    .map(Location::getKor)
+                                    .collect(Collectors.joining("#"))
+                    );
+                })
+                .build();
+    }
+
+
+    private JpaCursorItemReader<Location> jpaCursorItemReader() throws Exception {
+        JpaCursorItemReader<Location> itemReader = new JpaCursorItemReaderBuilder<Location>()
+                .name("jpaCursorItemReader")
+                .entityManagerFactory(entityManagerFactory)
+                .queryString("select l from Location l")
+                .build();
+
+        itemReader.afterPropertiesSet();
+        return itemReader;
     }
 
 
