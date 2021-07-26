@@ -16,6 +16,3 @@ spring:
         format_sql: true
 
     show-sql: true
-  sql:
-    init:
-      data-locations: classpath:person.sql, location.sql
