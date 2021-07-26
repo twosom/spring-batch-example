@@ -1,10 +1,4 @@
-CREATE TABLE location
-(
-    id     bigint primary key auto_increment,
-    eng    VARCHAR(255) NOT NULL,
-    kor    VARCHAR(255) NOT NULL,
-    detail VARCHAR(255) NOT NULL
-);
+
 INSERT INTO location(eng, kor, detail)
 VALUES ('Ansan', '안산시', 'Gyeonggi');
 INSERT INTO location(eng, kor, detail)
