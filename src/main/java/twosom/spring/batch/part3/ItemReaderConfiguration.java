@@ -8,6 +8,8 @@ import org.springframework.batch.core.configuration.annotation.JobBuilderFactory
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
 import org.springframework.batch.core.launch.support.RunIdIncrementer;
 import org.springframework.batch.item.ItemWriter;
+import org.springframework.batch.item.database.JdbcCursorItemReader;
+import org.springframework.batch.item.database.builder.JdbcCursorItemReaderBuilder;
 import org.springframework.batch.item.file.FlatFileItemReader;
 import org.springframework.batch.item.file.builder.FlatFileItemReaderBuilder;
 import org.springframework.batch.item.file.mapping.DefaultLineMapper;
@@ -16,6 +18,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
 
+import javax.sql.DataSource;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -25,6 +28,8 @@ import java.util.stream.IntStream;
 @Configuration
 @RequiredArgsConstructor
 public class ItemReaderConfiguration {
+
+    private final DataSource dataSource;
 
     private final JobBuilderFactory jobBuilderFactory;
     private final StepBuilderFactory stepBuilderFactory;
@@ -37,6 +42,8 @@ public class ItemReaderConfiguration {
                 .start(this.customItemReaderStep())
                 .next(this.locationCsvStep())
                 .next(this.personCsvStep())
+                .next(this.jdbcStep())
+                .next(this.locationJdbcStep())
                 .build();
     }
 
@@ -62,6 +69,65 @@ public class ItemReaderConfiguration {
                 })
                 .build();
     }
+
+    @Bean
+    public Step jdbcStep() throws Exception {
+        return stepBuilderFactory.get("jdbcStep")
+                .<Person, Person>chunk(10)
+                .reader(jdbcCursorItemReader())
+                .writer(itemWriter())
+                .build();
+    }
+
+
+    private JdbcCursorItemReader<Person> jdbcCursorItemReader() throws Exception {
+        JdbcCursorItemReader<Person> itemReader = new JdbcCursorItemReaderBuilder<Person>()
+                .name("jdbcCursorItemReader")
+                .dataSource(dataSource)
+                .sql("select id, name, age, address from person")
+                .rowMapper((rs, rowNum) -> Person.builder()
+                        .id(rs.getInt("id"))
+                        .name(rs.getString("name"))
+                        .age(rs.getString("age"))
+                        .address(rs.getString("address"))
+                        .build())
+                .build();
+
+        itemReader.afterPropertiesSet();
+        return itemReader;
+    }
+
+    private JdbcCursorItemReader<Location> locationJdbcCursorItemReader() throws Exception {
+        JdbcCursorItemReader<Location> itemReader = new JdbcCursorItemReaderBuilder<Location>()
+                .name("locationJdbcCursorItemReader")
+                .dataSource(dataSource)
+                .sql("select eng, kor, detail from location")
+                .rowMapper((rs, rowNum) -> Location.builder()
+                        .eng(rs.getString("eng"))
+                        .kor(rs.getString("kor"))
+                        .detail(rs.getString("detail"))
+                        .build())
+                .build();
+
+        itemReader.afterPropertiesSet();
+        return itemReader;
+    }
+
+    @Bean
+    public Step locationJdbcStep() throws Exception {
+        return this.stepBuilderFactory.get("locationJdbcStep")
+                .<Location, Location>chunk(10)
+                .reader(locationJdbcCursorItemReader())
+                .writer(items -> {
+                    log.info(
+                            items.stream()
+                                    .map(Location::getKor)
+                                    .collect(Collectors.joining(","))
+                    );
+                })
+                .build();
+    }
+
 
     @Bean
     public Step personCsvStep() throws Exception {
@@ -133,11 +199,11 @@ public class ItemReaderConfiguration {
     private List<Person> getItems() {
         return IntStream.range(0, 10)
                 .mapToObj(i -> Person.builder()
-                                    .id(i + 1)
-                                    .name("test name" + i)
-                                    .age("test age")
-                                    .address("test address")
-                                    .build())
+                        .id(i + 1)
+                        .name("test name" + i)
+                        .age("test age")
+                        .address("test address")
+                        .build())
                 .collect(Collectors.toList());
     }
 
