@@ -6,6 +6,11 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
+    properties:
+      format_sql: true
   batch:
     jdbc:
       initialize-schema: never
+
+logging.level:
+  org.hibernate.SQL: debug
